@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jul  3 18:52:02 2019
-@author: dhyla
 
 Attempts to learn through an RNN the pan counts of peptides given the peptide one-hot.
 Uses PyTorch RNN Cells as the networks.
+
+@author: dhyla
 """
 # import os
 # os.environ['CUDA_VISIBLE_DEVICES']='0'
