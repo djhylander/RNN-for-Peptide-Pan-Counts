@@ -2,9 +2,11 @@
 """
 Created on Wed Jul  3 18:52:02 2019
 
+Attempts to learn through an RNN the pan counts of peptides given the peptide one-hot.
+Uses manual calculations to imitate RNN Cells as the networks.
+
 @author: dhyla
 """
-
 import torch
 import torch.nn as nn
 # import torch.nn.functional as F
@@ -14,7 +16,6 @@ import pandas as pd
 from collections import OrderedDict
 import numpy as np
 import matplotlib.pyplot as plt
-
 
 # returns a 20 x 12 one hot encoding of peptide
 AA=['A','R','N','D','C','Q','E','G','H','I','L','K','M','F','P','S','T','W','Y','V']
@@ -31,10 +32,11 @@ def oneHotter(peptide):
             else:
                 value.append(0)
     result = torch.Tensor(list(aaDict.values())).t()
-    #result = np.array(list(aaDict.values()))
+    #result = np.array(list(aaDict.values()))  # in case numpy is needed
     return result
 
-
+# First RNN to take each column of a peptide one-hot and return the last hidden layer
+# Imitates an RNN Cell using indivdual calculations
 class RNN(nn.Module):
     def __init__(self, n_inputs, n_neurons, n_outputs):
         super(RNN, self).__init__()
@@ -58,6 +60,8 @@ class RNN(nn.Module):
 
         return self.h12 # 12 x 20
 
+# Second RNN that takes the last hidden layer from first RNN and returns the output vector correlating to peptide pan counts
+# Again using individual calculations to simlulate an RNN Cell
 class RNN2(nn.Module):
     def __init__(self, n_inputs, n_neurons, n_outputs):
         super(RNN2, self).__init__()
@@ -80,20 +84,20 @@ class RNN2(nn.Module):
         return [self.p1, self.p2, self.p3, self.e]
 
 
-# file input
+# file input where indexes are set to the sequence
 data = pd.read_csv('cleaned_set1.csv')
 data.set_index('AA_seq',inplace=True)
 
-data = data.sample(10)
+# data = data.sample(10)  # for small tests
 
-model = RNN(20, 20, 1)
-model2 = RNN2(20,20, 1)
+model = RNN(12, 20, 1)
+model2 = RNN2(12, 20, 1)
 loss_fn = torch.nn.SmoothL1Loss()
 parameters = [model.weight0, model.hidden0, model2.weight1, model2.hidden1, model2.weightY]
 optimizer = optim.Adam(parameters, lr=1e-5)
 
+# Loops through the data randomly, inputs one-hot in models and backward propagates to find error
 num_epochs = 50
-numIter = 500
 epoch_all = []
 # outliers_all = []
 for epoch in range(num_epochs):
@@ -112,8 +116,8 @@ for epoch in range(num_epochs):
                         pepsubs[8], pepsubs[9], pepsubs[10], pepsubs[11])
         yPred = model2(hiddenEnd)
         for j in range(len(yPred)):
-            yPred[j] = torch.abs(torch.sum(yPred[j])) #round(yPred[j].data.item(), 7)
-        yActual = [data.loc[pep][0], data.loc[pep][1],
+            yPred[j] = torch.abs(torch.sum(yPred[j]))
+        yActual = [data.loc[pep][0], data.loc[pep][1],  # actual pan counts
                    data.loc[pep][2], data.loc[pep][3]]
         yPredTensor = Var(torch.Tensor(yPred), requires_grad=True)
         yActualTensor = Var(torch.Tensor(yActual), requires_grad=False)
@@ -121,14 +125,13 @@ for epoch in range(num_epochs):
         loss = loss_fn(yPredTensor, yActualTensor)
         loss.backward()
         optimizer.step()
-    
-        if loss.item() < 20:
+        
+        # if want outliers add here
+        if loss.item() < 20:  
             loss_all.append(loss.item())
-        print("epoch: ", epoch, " iteration: ", i) #, "\n\typred: ", yPred, "\n\tyactual: ", yActual)
+        print("epoch: ", epoch, " iteration: ", i)
     # outliers_all.append(outliers_curr)
     epoch_all.append(np.mean(loss_all))
-
-
 
 graphLoss = plt.scatter(x = np.linspace(0, len(epoch_all),num = len(epoch_all)), y = epoch_all)
 plt.xlabel(xlabel = 'Epochs (5000 iter)')
